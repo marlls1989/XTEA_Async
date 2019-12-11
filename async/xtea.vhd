@@ -1,11 +1,3 @@
--- XTEA encryption algorithm v0.3
--- Sergio Johann Filho, 2016
---
--- based on reference code (below) released into the public domain by David Wheeler and Roger Needham
--- the code takes 64 bits of data in v[0] and v[1] and 128 bits of key in key[0] - key[3]
--- recommended number of rounds is 32 (2 Feistel-network rounds are performed on each iteration).
---
---
 -- void encipher(uint32_t num_rounds, uint32_t v[2], uint32_t const key[4]){
 -- 	uint32_t i;
 -- 	uint32_t v0 = v[0], v1 = v[1], sum = 0, delta = 0x9E3779B9;
@@ -51,134 +43,73 @@ entity xtea is
 end xtea;
 
 architecture xtea_arch of xtea is
-	type states is (idle, enc_step1, enc_step2, enc_step3, dec_step1, dec_step2, dec_step3, key_sel1, key_sel2, done);
-	signal state: states;
-	signal v0, v1, sum, delta, key_sel: std_logic_vector(31 downto 0);
-	signal counter: std_logic_vector(7 downto 0);
+	type pipe_array is array (0 to ROUNDS) of std_logic_vector(31 downto 0);
+	signal v0, v1, v0_r, v1_r, sum, sum_r : pipe_array;
+	signal key_0, key_1 : pipe_array;
+	signal delta, counter : std_logic_vector(31 downto 0);
+	signal stage : std_logic;
 begin
 
 	delta <= x"9e3779b9";
 
+	key_0(0) <= key(127 downto 96);
+	key_1(0) <= key(127 downto 96) when sum_r(0)(12 downto 11) = "00" else
+				key(95 downto 64) when sum_r(0)(12 downto 11) = "01" else 
+				key(63 downto 32) when sum_r(0)(12 downto 11) = "10" else
+				key(31 downto 0);
+	KEY_SEL: for round in 1 to ROUNDS generate
+		key_0(round) <= key(127 downto 96) when sum_r(round-1)(1 downto 0) = "00" else
+				 	    key(95 downto 64) when sum_r(round-1)(1 downto 0) = "01" else 
+				 		key(63 downto 32) when sum_r(round-1)(1 downto 0) = "10" else
+						key(31 downto 0);-- when sum(round-1)(1 downto 0) = "11"
+		
+		key_1(round) <= key(127 downto 96) when sum_r(round)(12 downto 11) = "00" else
+						key(95 downto 64) when sum_r(round)(12 downto 11) = "01" else 
+						key(63 downto 32) when sum_r(round)(12 downto 11) = "10" else
+						key(31 downto 0);-- when sum(round-1)(1 downto 0) = "11" 
+	end generate KEY_SEL;
+
+	ENCIPHER: for round in 1 to ROUNDS generate
+		v0(round) <= v0_r(round-1) + ((((v1_r(round-1)(27 downto 0) & "0000") xor ("00000" & v1_r(round-1)(31 downto 5))) + v1_r(round-1)) xor (sum_r(round-1) + key_0(round)));		
+		sum(round) <= sum_r(round-1) + delta;
+		v1(round) <= v1_r(round-1) + ((((v0_r(round)(27 downto 0) & "0000") xor ("00000" & v0_r(round)(31 downto 5))) + v0_r(round)) xor (sum_r(round) + key_1(round)));
+	end generate ENCIPHER;
+
 	process(clk, reset)
 	begin
 		if reset = '0' then
-			v0 <= (others => '0');
-			v1 <= (others => '0');
-			sum <= (others => '0');
-			key_sel <= (others => '0');
+			v0_r 	<= (others => (others => '0'));
+			v1_r 	<= (others => (others => '0'));
+			sum_r	<= (others => (others => '0'));
+			output 	<= (others => '0');
+			ready  	<= '0';
+			stage 	<= '0';
 			counter <= (others => '0');
-			output <= (others => '0');
-			ready <= '0';
 		elsif clk'event and clk = '1' then
-			case state is
-				when idle =>
-					ready <= '0';
-					counter <= (others => '0');
-				when key_sel1 =>
-					case sum(1 downto 0) is
-						when "00" =>
-							key_sel <= key(127 downto 96);
-						when "01" =>
-							key_sel <= key(95 downto 64);
-						when "10" =>
-							key_sel <= key(63 downto 32);
-						when "11" =>
-							key_sel <= key(31 downto 0);
-						when others => null;
-					end case;
-				when key_sel2 =>
-					case sum(12 downto 11) is
-						when "00" =>
-							key_sel <= key(127 downto 96);
-						when "01" =>
-							key_sel <= key(95 downto 64);
-						when "10" =>
-							key_sel <= key(63 downto 32);
-						when "11" =>
-							key_sel <= key(31 downto 0);
-						when others => null;
-					end case;
-				when enc_step1 =>
-					v1 <= input(31 downto 0);
-					v0 <= input(63 downto 32);
-					sum <= (others => '0');
-				when enc_step2 =>
-					v0 <= v0 + ((((v1(27 downto 0) & "0000") xor ("00000" & v1(31 downto 5))) + v1) xor (sum + key_sel));
-					sum <= sum + delta;
-				when enc_step3 =>
-					v1 <= v1 + ((((v0(27 downto 0) & "0000") xor ("00000" & v0(31 downto 5))) + v0) xor (sum + key_sel));
-					counter <= counter + 1;
-				when dec_step1 =>
-					v1 <= input(31 downto 0);
-					v0 <= input(63 downto 32);
-					sum <= x"c6ef3720";
-				when dec_step2 =>
-					v1 <= v1 - ((((v0(27 downto 0) & "0000") xor ("00000" & v0(31 downto 5))) + v0) xor (sum + key_sel));
-					sum <= sum - delta;
-				when dec_step3 =>
-					v0 <= v0 - ((((v1(27 downto 0) & "0000") xor ("00000" & v1(31 downto 5))) + v1) xor (sum + key_sel));
-					counter <= counter + 1;
-				when done =>
-					output(63 downto 32) <= v0;
-					output(31 downto 0) <= v1;
-					ready <= '1';
-				when others => null;
-			end case;
-		end if;
-	end process;
-
-	process(clk, reset, state, counter, start, encrypt)
-	begin
-		if reset = '0' then
-			state <= idle;
-		elsif clk'event and clk = '1' then
-			case state is
-				when idle =>
-					if (start = '1') then
-						if (encrypt = '1') then
-							state <= enc_step1;
-						else
-							state <= dec_step1;
-						end if;
-					else
-						state <= idle;
+			if counter = 2*ROUNDS+1 then -- display the result
+				output(63 downto 32) <= v0(ROUNDS);
+				output(31 downto 0)	 <= v1(ROUNDS);
+				ready <= '1';
+			elsif counter > 1 then -- execute enchipher
+				stage <= not stage;
+				counter <= counter + '1';
+				ENC: for round in 1 to ROUNDS loop
+					if stage = '0' then
+						v0_r(round) <= v0(round);
+						sum_r(round) <= sum(round);
+						v1_r(round) <= v1_r(round);
+					else 
+						v0_r(round) <= v0_r(round);
+						sum_r(round) <= sum_r(round);
+						v1_r(round) <= v1(round);
 					end if;
-				when key_sel1 =>
-					if (encrypt = '1') then
-						state <= enc_step2;
-					else
-						state <= dec_step3;
-					end if;
-				when key_sel2 =>
-					if (encrypt = '1') then
-						state <= enc_step3;
-					else
-						state <= dec_step2;
-					end if;
-				when enc_step1 => state <= key_sel1;
-				when enc_step2 => state <= key_sel2;
-				when enc_step3 =>
-					if (counter < ROUNDS-1) then
-						state <= key_sel1;
-					else
-						state <= done;
-					end if;
-				when dec_step1 => state <= key_sel2;
-				when dec_step2 => state <= key_sel1;
-				when dec_step3 =>
-					if (counter < ROUNDS-1) then
-						state <= key_sel2;
-					else
-						state <= done;
-					end if;
-				when done =>
-					if (start = '1') then
-						state <= done;
-					else
-						state <= idle;
-					end if;
-				when others => null;
-			end case;
+				end loop ENC;
+			elsif start = '1' AND encrypt = '1' then -- start encipher
+				counter <= counter + '1';
+				v1_r(0) <= input(31 downto 0);
+				v0_r(0) <= input(63 downto 32);
+				sum_r(0) <= (others => '0');
+			end if;
 		end if;
 	end process;
 
