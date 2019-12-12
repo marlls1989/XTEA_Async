@@ -45,9 +45,10 @@ end xtea;
 architecture xtea_arch of xtea is
 	type pipe_array is array (0 to ROUNDS) of std_logic_vector(31 downto 0);
 	signal v0, v1, v0_r, v1_r, sum, sum_r : pipe_array;
-	signal key_0, key_1, key_r: pipe_array;
+	signal key_0, key_1: pipe_array;
 	signal delta, counter : std_logic_vector(31 downto 0);
 	signal stage, encrypt_r : std_logic;
+	signal key_r: std_logic_vector(127 downto 0);
 	type states is (INITIAL, OPERATE);
 	signal ps, ns: states;
 begin
@@ -121,7 +122,6 @@ begin
 			v1_r <= (others => (others => '0'));
 			sum_r <= (others => (others => '0'));
 			key_r <= (others => '0');
-			stage <= '0';
 			encrypt_r <= '0';
 		elsif clk'event and clk = '1' then
 			stage <= not stage;
