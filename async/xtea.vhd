@@ -45,7 +45,7 @@ end xtea;
 architecture xtea_arch of xtea is
 	type pipe_array is array (0 to ROUNDS) of std_logic_vector(31 downto 0);
 	signal v0, v1, v0_r, v1_r, sum, sum_r : pipe_array;
-	signal key_0, key_1 : pipe_array;
+	signal key_0, key_1, key_r: pipe_array;
 	signal delta, counter : std_logic_vector(31 downto 0);
 	signal stage, encrypt_r : std_logic;
 	type states is (INITIAL, OPERATE);
@@ -90,22 +90,22 @@ begin
 		end case;
 	end process;
 
-	key_0(0) <= key(127 downto 96);
-	key_1(0) <= key(127 downto 96) when sum_r(0)(12 downto 11) = "00" else
-				key(95 downto 64) when sum_r(0)(12 downto 11) = "01" else 
-				key(63 downto 32) when sum_r(0)(12 downto 11) = "10" else
-				key(31 downto 0);
+	key_0(0) <= key_r(127 downto 96);
+	key_1(0) <= key_r(127 downto 96) when sum_r(0)(12 downto 11) = "00" else
+				key_r(95 downto 64) when sum_r(0)(12 downto 11) = "01" else 
+				key_r(63 downto 32) when sum_r(0)(12 downto 11) = "10" else
+				key_r(31 downto 0);
 
 	KEY_SEL: for round in 1 to ROUNDS generate
-		key_0(round) <= key(127 downto 96) when sum_r(round-1)(1 downto 0) = "00" else
-				 	    key(95 downto 64) when sum_r(round-1)(1 downto 0) = "01" else 
-				 		key(63 downto 32) when sum_r(round-1)(1 downto 0) = "10" else
-						key(31 downto 0);-- when sum(round-1)(1 downto 0) = "11"
+		key_0(round) <= key_r(127 downto 96) when sum_r(round-1)(1 downto 0) = "00" else
+						key_r(95 downto 64) when sum_r(round-1)(1 downto 0) = "01" else 
+						key_r(63 downto 32) when sum_r(round-1)(1 downto 0) = "10" else
+						key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11"
 		
-		key_1(round) <= key(127 downto 96) when sum_r(round)(12 downto 11) = "00" else
-						key(95 downto 64) when sum_r(round)(12 downto 11) = "01" else 
-						key(63 downto 32) when sum_r(round)(12 downto 11) = "10" else
-						key(31 downto 0);-- when sum(round-1)(1 downto 0) = "11" 
+		key_1(round) <= key_r(127 downto 96) when sum_r(round)(12 downto 11) = "00" else
+						key_r(95 downto 64) when sum_r(round)(12 downto 11) = "01" else 
+						key_r(63 downto 32) when sum_r(round)(12 downto 11) = "10" else
+						key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11" 
 	end generate KEY_SEL;
 
 	ENCIPHER: for round in 1 to ROUNDS generate
@@ -119,8 +119,9 @@ begin
 		if reset = '0' then
 			v0_r <= (others => (others => '0'));
 			v1_r <= (others => (others => '0'));
-			sum_r	<= (others => (others => '0'));
-			stage 	<= '0';
+			sum_r <= (others => (others => '0'));
+			key_r <= (others => '0');
+			stage <= '0';
 			encrypt_r <= '0';
 		elsif clk'event and clk = '1' then
 			stage <= not stage;
@@ -129,6 +130,7 @@ begin
 				encrypt_r <= encrypt;
 				v1_r(0) <= input(31 downto 0);
 				v0_r(0) <= input(63 downto 32);
+				key_r <= key;
 			end if;
 				
 			-- for the others:
