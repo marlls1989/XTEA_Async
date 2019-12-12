@@ -45,6 +45,7 @@ end xtea;
 architecture xtea_arch of xtea is
 	type pipe_array is array (0 to ROUNDS) of std_logic_vector(31 downto 0);
 	signal v0, v1, v0_r, v1_r, sum, sum_r : pipe_array;
+	signal v0_r_zero, v1_r_zero : std_logic_vector(31 downto 0);
 	signal key_0, key_1: pipe_array;
 	signal delta, counter : std_logic_vector(31 downto 0);
 	signal stage, encrypt_r : std_logic;
@@ -110,9 +111,16 @@ begin
 	end generate KEY_SEL;
 
 	ENCIPHER: for round in 1 to ROUNDS generate
-		v0(round) <= v0_r(round-1) + ((((v1_r(round-1)(27 downto 0) & "0000") xor ("00000" & v1_r(round-1)(31 downto 5))) + v1_r(round-1)) xor (sum_r(round-1) + key_0(round)));		
-		sum(round) <= sum_r(round-1) + delta;
-		v1(round) <= v1_r(round-1) + ((((v0_r(round)(27 downto 0) & "0000") xor ("00000" & v0_r(round)(31 downto 5))) + v0_r(round)) xor (sum_r(round) + key_1(round)));
+		THE_FIRST: if round = 1 generate
+			v0(round) <= v0_r_zero + ((((v1_r_zero(27 downto 0) & "0000") xor ("00000" & v1_r_zero(31 downto 5))) + v1_r_zero) xor (sum_r(round-1) + key_0(round)));		
+			sum(round) <= sum_r(round-1) + delta;
+			v1(round) <= v1_r_zero + ((((v0_r(round)(27 downto 0) & "0000") xor ("00000" & v0_r(round)(31 downto 5))) + v0_r(round)) xor (sum_r(round) + key_1(round)));
+		end generate THE_FIRST;
+		O_RESTO: if round > 1 generate
+			v0(round) <= v0_r(round-1) + ((((v1_r(round-1)(27 downto 0) & "0000") xor ("00000" & v1_r(round-1)(31 downto 5))) + v1_r(round-1)) xor (sum_r(round-1) + key_0(round)));		
+			sum(round) <= sum_r(round-1) + delta;
+			v1(round) <= v1_r(round-1) + ((((v0_r(round)(27 downto 0) & "0000") xor ("00000" & v0_r(round)(31 downto 5))) + v0_r(round)) xor (sum_r(round) + key_1(round)));
+		end generate O_RESTO;
 	end generate ENCIPHER;
 
 	process(clk, reset)
@@ -128,8 +136,8 @@ begin
 
 			if ps = INITIAL then
 				encrypt_r <= encrypt;
-				v1_r(0) <= input(31 downto 0);
-				v0_r(0) <= input(63 downto 32);
+				v1_r_zero <= input(31 downto 0);
+				v0_r_zero <= input(63 downto 32);
 				key_r <= key;
 			end if;
 				
