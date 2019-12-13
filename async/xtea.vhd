@@ -58,41 +58,44 @@ begin
 	output(31 downto 0)	 <= v1(ROUNDS);
 	
 	-- gets the input
-	process(input, key)
+	process(clk, input, key)
 	begin
-		v1(0) <= input(31 downto 0);
-		v0(0) <= input(63 downto 32);
-		key_r <= key;
+		if reset = '0' then
+			v1(0) <= (others => '0');
+			v0(0) <= (others => '0');
+			key_r <= (others => '0');
+		elsif clk'event and clk = '1' then
+			v1(0) <= input(31 downto 0);
+			v0(0) <= input(63 downto 32);
+			key_r <= key;
+		end if;
 	end process;
 
 	-- run the logic in a pipeline
-	process(v0, v1, sum)
+	process(clk, v0, v1, sum, key_0, key_1)
 	begin
-		ENCIPHER: for round in 1 to ROUNDS generate
-			v0(round) <= v0(round-1) + ((((v1(round-1)(27 downto 0) & "0000") xor ("00000" & v1(round-1)(31 downto 5))) + v1(round-1)) xor (sum(round-1) + key_0(round)));		
-			sum(round) <= sum(round-1) + delta;
-			v1(round) <= v1(round-1) + ((((v0(round)(27 downto 0) & "0000") xor ("00000" & v0(round)(31 downto 5))) + v0(round)) xor (sum(round) + key_1(round)));
-		end generate ENCIPHER;
+		if clk'event and clk = '1' then
+			ENCIPHER: for round in 1 to ROUNDS loop
+				v0(round) <= v0(round-1) + ((((v1(round-1)(27 downto 0) & "0000") xor ("00000" & v1(round-1)(31 downto 5))) + v1(round-1)) xor (sum(round-1) + key_0(round)));		
+				sum(round) <= sum(round-1) + delta;
+				v1(round) <= v1(round-1) + ((((v0(round)(27 downto 0) & "0000") xor ("00000" & v0(round)(31 downto 5))) + v0(round)) xor (sum(round) + key_1(round)));
+			end loop ENCIPHER;
+		end if;
 	end process;
 
-	process(key_0, key_1, key_r, sum)
-	begin
-		key_0(0) <= key_r(127 downto 96);
-		key_1(0) <= key_r(127 downto 96) when sum(1)(12 downto 11) = "00" else
-					key_r(95 downto 64) when sum(1)(12 downto 11) = "01" else 
-					key_r(63 downto 32) when sum(1)(12 downto 11) = "10" else
-					key_r(31 downto 0);
 
-		KEY_SEL: for round in 1 to ROUNDS generate
-			key_0(round) <= key_r(127 downto 96) when sum(round-1)(1 downto 0) = "00" else
-							key_r(95 downto 64) when sum(round-1)(1 downto 0) = "01" else 
-							key_r(63 downto 32) when sum(round-1)(1 downto 0) = "10" else
-							key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11"
-			
-			key_1(round) <= key_r(127 downto 96) when sum(round)(12 downto 11) = "00" else
-							key_r(95 downto 64) when sum(round)(12 downto 11) = "01" else 
-							key_r(63 downto 32) when sum(round)(12 downto 11) = "10" else
-							key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11" 
+	key_0(0) <= key_r(127 downto 96);
+	key_1(0) <= key_r(127 downto 96);
+	KEY_SEL: for round in 1 to ROUNDS generate
+		key_0(round) <= key_r(127 downto 96) when sum(round-1)(1 downto 0) = "00" else
+						key_r(95 downto 64) when sum(round-1)(1 downto 0) = "01" else 
+						key_r(63 downto 32) when sum(round-1)(1 downto 0) = "10" else
+						key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11"
+		
+		key_1(round) <= key_r(127 downto 96) when sum(round)(12 downto 11) = "00" else
+						key_r(95 downto 64) when sum(round)(12 downto 11) = "01" else 
+						key_r(63 downto 32) when sum(round)(12 downto 11) = "10" else
+						key_r(31 downto 0);-- when sum(round-1)(1 downto 0) = "11" 
 	end generate KEY_SEL;
 
 	-- process(clk, reset)
