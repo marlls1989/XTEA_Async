@@ -12,15 +12,30 @@ architecture xtea_tb of xtea_tb is
 	signal in_enc_t, in_enc_f, in_enc_ack, out_enc_t, out_enc_f, out_enc_ack: std_logic_vector(63 downto 0);
 begin
 
-	reset <= '1', '0' after 5 ns, '1' after 1500 ns;
+	reset <= '0', '1' after 1500 ns;
 
 	clk <= '1';
 
-	key_t <= x"00000000000000000000000000000000", x"f0e1d2c3b4a5968778695a4b3c2d1e0f" after 1000 ns;
-	key_f <= x"00000000000000000000000000000000", not x"f0e1d2c3b4a5968778695a4b3c2d1e0f" after 1000 ns;
+	out_enc_ack <= x"0000000000000000";
 
-	in_enc_t <= x"0000000000000000", x"1234567890123456" after 1000 ns;
-	in_enc_f <= x"0000000000000000", not x"1234567890123456" after 1000 ns;
+	process
+	begin
+		key_t <= x"00000000000000000000000000000000";
+		key_f <= x"00000000000000000000000000000000";
+		in_enc_t <= x"0000000000000000";
+		in_enc_f <= x"0000000000000000";
+		wait for 2000 ns;
+		key_t <= x"f0e1d2c3b4a5968778695a4b3c2d1e0f";
+		key_f <= not x"f0e1d2c3b4a5968778695a4b3c2d1e0f";
+		in_enc_t <= x"1234567890123456";
+		in_enc_f <= not x"1234567890123456";		
+		wait for 50 ns;
+		key_t <= x"00000000000000000000000000000000";
+		key_f <= x"00000000000000000000000000000000";
+		in_enc_t <= x"0000000000000000";
+		in_enc_f <= x"0000000000000000";
+		wait;
+	end process;
 
 	process(out_enc_t, out_enc_f, out_enc_ack)
 	begin
