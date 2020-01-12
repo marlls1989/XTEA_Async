@@ -1,0 +1,7 @@
+# Cadence Genus(TM) Synthesis Solution, Version 18.14-s037_1, built Mar 27 2019 12:19:21
+
+# Date: Thu Jan 02 14:50:17 2020
+# Host: gaphl01 (x86_64 w/Linux 2.6.32-754.17.1.el6.x86_64) (4cores*4cpus*1physical cpu*Intel(R) Xeon(R) CPU E3-1220 v5 @ 3.00GHz 8192KB)
+# OS:   CentOS release 6.10 (Final)
+
+source /home/msartori/developer/phd/research/pulsar/scripts/syn_rtl.tcl
